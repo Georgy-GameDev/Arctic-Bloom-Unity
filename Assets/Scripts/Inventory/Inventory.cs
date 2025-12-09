@@ -1,23 +1,46 @@
-using System;
 using UnityEngine;
+using System;
 
-public class Inventory : MonoBehaviour
+[System.Serializable]
+public class ItemStack//РѕРґРЅР° СЏС‡РµР№РєР° РёРЅРІРµРЅС‚Р°СЂСЏ
 {
-    public static Inventory Instance { get; private set; }
+    public ItemData item;
+    public int count;
 
-    public ItemStack[] slots = new ItemStack[12];
-    public int activeIndex = 0;
+    public bool isEmpty
+    {
+        get { return item == null || count <= 0; }
+    }
+
+    public void Clear()
+    {
+        item = null; count = 0;
+    }
+}
+public class Inventory : MonoBehaviour// Р»РѕРіРёРєР° РёРЅРІРµРЅС‚Р°СЂСЏ
+{
+    public static Inventory Instance {  get; private set; }
+
+    public ItemStack[] slots = new ItemStack[8];//8 СЃР»РѕС‚РѕРІ
+
+    public int activeIndex = 0;//РєР°РєРѕР№ СЃР»РѕС‚ Р°РєС‚РёРІРЅС‹Р№
 
     public event Action OnChanged;
 
-    void Awake()
+    private void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
 
-        // Инициализируем массив
         for (int i = 0; i < slots.Length; i++)
+        {
             slots[i] = new ItemStack();
+        }
     }
 
     public void SetActive(int index)
@@ -26,56 +49,74 @@ public class Inventory : MonoBehaviour
         OnChanged?.Invoke();
     }
 
-    public ItemStack GetActive() => slots[activeIndex];
-
-    public bool Add(Item item, int amount = 1)
+    public ItemStack GetActive()
     {
-        if (item == null || amount <= 0) return false;
+        return slots[activeIndex];
+    }
 
-        // 1) Стекуем в существующие стеки
+    public bool Add(ItemData item, int amount = 1)
+    {
+        if (item == null || amount <= 0)
+            return false;
+
         for (int i = 0; i < slots.Length && amount > 0; i++)
         {
-            var s = slots[i];
+            ItemStack s = slots[i];
+
             if (s.item == item && s.count < item.maxStack)
             {
-                int canPut = Mathf.Min(amount, item.maxStack - s.count);
-                s.count += canPut;
-                amount -= canPut;
+                int free = item.maxStack - s.count;
+                int toAdd = Mathf.Min(amount, free);
+
+                s.count += toAdd;
+                amount -= toAdd;
             }
         }
 
-        // 2) Кладём в пустые ячейки
         for (int i = 0; i < slots.Length && amount > 0; i++)
         {
-            var s = slots[i];
-            if (s.IsEmpty)
+            ItemStack s = slots[i];
+
+            if (s.isEmpty)
             {
-                int put = Mathf.Min(amount, item.maxStack);
+                int toAdd = Mathf.Min(amount, item.maxStack);
+
                 s.item = item;
-                s.count = put;
-                amount -= put;
+                s.count = toAdd;
+
+                amount -= toAdd;
             }
         }
 
         OnChanged?.Invoke();
-        return amount == 0; // true, если всё поместили
+
+        return amount == 0;
     }
 
-    public bool RemoveFromActive(int amount = 1)
+    public bool RemoveFromSlot(int index, int amount = 1)
     {
-        var s = GetActive();
-        if (s.IsEmpty || amount <= 0) return false;
+        if (index < 0 || index >= slots.Length) return false;
+
+        ItemStack s = slots[index];
+
+        if (s.isEmpty || amount <= 0)
+        {
+            return false;
+        }
 
         s.count -= amount;
-        if (s.count <= 0) s.Clear();
+
+        if (s.count <= 0)
+        {
+            s.Clear();
+        }
 
         OnChanged?.Invoke();
         return true;
     }
 
-    public void ClearAll()
+    public bool RemoveFromActive(int amount = 1)
     {
-        for (int i = 0; i < slots.Length; i++) slots[i].Clear();
-        OnChanged?.Invoke();
+        return RemoveFromSlot(activeIndex, amount);
     }
 }
